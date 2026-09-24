@@ -10,7 +10,6 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,15 +18,23 @@ import type { AppStackParamList } from '../../navigation/types';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { fontFamily, useTheme } from '../../theme';
+import { tripErrorMessage } from '../../api/trips';
 import { DockSlot, Fab, GlassCard, GlassDock, IconButton, ScreenBackground, Segmented, Sheet } from '../../ui/chrome';
-import { CoverPicker, CoverSearch } from '../../ui/CoverSearch';
-import type { CoverPhoto } from '../../api/trips';
+import { CoverPicker } from '../../ui/CoverSearch';
 import { coverGradient } from '../../ui/covers';
 import { mediaUrl } from '../../ui/media';
 import { daysUntil, getTripStatus, shortDate, splitDashboard, type TripFilter } from './dashboardModel';
+import { TripFormSheet } from './TripFormSheet';
 import mark from '../../../assets/icon.png';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Dashboard'>;
+
+type CardAction = {
+  key: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+};
 
 export function DashboardScreen({ navigation }: Props) {
   const { t, locale } = useTranslation();
@@ -37,19 +44,20 @@ export function DashboardScreen({ navigation }: Props) {
   const logout = useAuthStore((state) => state.logout);
   const preference = useTheme().preference;
   const setPreference = useTheme().setPreference;
-  const { trips, status, error, loadTrips, createTrip, setCover } = useTripStore();
+  const { trips, status, error, loadTrips, saveTrip, setCover, setArchived, removeTrip, copyTrip } = useTripStore();
   const [filter, setFilter] = useState<TripFilter>('planned');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [menuOpen, setMenuOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formTrip, setFormTrip] = useState<Trip | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [coverTrip, setCoverTrip] = useState<Trip | null>(null);
   const [savingCover, setSavingCover] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Trip | null>(null);
+  const [pendingCopy, setPendingCopy] = useState<Trip | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     loadTrips();
@@ -76,21 +84,68 @@ export function DashboardScreen({ navigation }: Props) {
     navigation.navigate('Trip', { tripId: trip.id, title: trip.title });
   }
 
-  async function submitCreate() {
-    const trimmed = title.trim();
-    if (!trimmed || creating) return;
-    setCreating(true);
-    setCreateError(null);
+  function openCreate() {
+    setFormTrip(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(trip: Trip) {
+    setFormTrip(trip);
+    setFormOpen(true);
+  }
+
+  function actionsFor(trip: Trip, layout: 'grid' | 'list'): CardAction[] {
+    const cover: CardAction = { key: 'cover', label: t('dashboard.searchUnsplash'), icon: 'image-outline', onPress: () => setCoverTrip(trip) };
+    const copy: CardAction = {
+      key: 'copy',
+      label: t('dashboard.aria.duplicate'),
+      icon: 'copy-outline',
+      onPress: () => setPendingCopy(trip),
+    };
+    const remove: CardAction = { key: 'delete', label: t('common.delete'), icon: 'trash-outline', onPress: () => setPendingDelete(trip) };
+    if (filter === 'archive') {
+      return [
+        cover,
+        copy,
+        { key: 'restore', label: t('dashboard.restore'), icon: 'archive-outline', onPress: () => runAction(() => setArchived(trip.id, false), t('dashboard.toast.restoreError')) },
+        remove,
+      ];
+    }
+    const actions: CardAction[] = [
+      cover,
+      { key: 'edit', label: t('common.edit'), icon: 'pencil-outline', onPress: () => openEdit(trip) },
+      copy,
+    ];
+    if (layout === 'list') {
+      actions.push({
+        key: 'archive',
+        label: t('dashboard.archive'),
+        icon: 'archive-outline',
+        onPress: () => runAction(() => setArchived(trip.id, true), t('dashboard.toast.archiveError')),
+      });
+    }
+    actions.push(remove);
+    return actions;
+  }
+
+  async function runAction(work: () => Promise<void>, fallback: string) {
+    setActionError(null);
     try {
-      const trip = await createTrip(trimmed, coverUrl);
-      setCreateOpen(false);
-      setTitle('');
-      setCoverUrl(null);
-      navigation.navigate('Trip', { tripId: trip.id, title: trip.title });
+      await work();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : t('dashboard.toast.createError'));
-    } finally {
-      setCreating(false);
+      setActionError(tripErrorMessage(err, fallback));
+    }
+  }
+
+  async function submitForm(body: Parameters<typeof saveTrip>[1], coverUrl: string | null) {
+    const editing = formTrip;
+    try {
+      const trip = await saveTrip(editing, body, coverUrl);
+      setFormOpen(false);
+      setFormTrip(null);
+      if (!editing) navigation.navigate('Trip', { tripId: trip.id, title: trip.title });
+    } catch (err) {
+      throw new Error(tripErrorMessage(err, editing ? t('dashboard.toast.updateError') : t('dashboard.toast.createError')));
     }
   }
 
@@ -111,6 +166,12 @@ export function DashboardScreen({ navigation }: Props) {
           paddingHorizontal: 16,
         }}
       >
+        {actionError ? (
+          <GlassCard style={{ marginBottom: 12, padding: 14 }}>
+            <Text style={{ fontFamily: fontFamily.medium, fontSize: 13, color: m.danger }}>{actionError}</Text>
+          </GlassCard>
+        ) : null}
+
         {status === 'error' ? (
           <GlassCard style={{ marginBottom: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Text style={{ flex: 1, fontFamily: fontFamily.medium, fontSize: 13, color: m.ink }}>{error}</Text>
@@ -130,7 +191,7 @@ export function DashboardScreen({ navigation }: Props) {
         )}
 
         {spotlight ? (
-          <SpotlightCard trip={spotlight} label={statusLabel(spotlight)} t={t} onOpen={() => openTrip(spotlight)} onCover={() => setCoverTrip(spotlight)} />
+          <SpotlightCard trip={spotlight} label={statusLabel(spotlight)} t={t} actions={actionsFor(spotlight, 'list')} onOpen={() => openTrip(spotlight)} />
         ) : null}
 
         <View style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -158,7 +219,7 @@ export function DashboardScreen({ navigation }: Props) {
               {t('dashboard.emptyText')}
             </Text>
             <Pressable
-              onPress={() => setCreateOpen(true)}
+              onPress={openCreate}
               style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: m.act, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 }}
             >
               <Ionicons name="add" size={14} color={m.actFg} />
@@ -170,9 +231,9 @@ export function DashboardScreen({ navigation }: Props) {
         <View style={{ marginTop: 10, gap: 12 }}>
           {grid.map((trip) =>
             viewMode === 'grid' ? (
-              <GridCard key={trip.id} trip={trip} locale={locale} badge={statusLabel(trip)} onOpen={() => openTrip(trip)} onCover={() => setCoverTrip(trip)} />
+              <GridCard key={trip.id} trip={trip} locale={locale} badge={statusLabel(trip)} actions={actionsFor(trip, 'grid')} onOpen={() => openTrip(trip)} />
             ) : (
-              <ListCard key={trip.id} trip={trip} locale={locale} badge={statusLabel(trip)} t={t} onOpen={() => openTrip(trip)} onCover={() => setCoverTrip(trip)} />
+              <ListCard key={trip.id} trip={trip} locale={locale} badge={statusLabel(trip)} t={t} actions={actionsFor(trip, 'list')} onOpen={() => openTrip(trip)} />
             ),
           )}
         </View>
@@ -270,7 +331,7 @@ export function DashboardScreen({ navigation }: Props) {
         <View style={{ flex: 1, alignItems: 'center' }}>
           <DockSlot label={t('nav.myTrips')} icon="grid-outline" active onPress={() => {}} />
         </View>
-        <Fab label={t('dashboard.newTrip')} onPress={() => { setCreateError(null); setCreateOpen(true); }} />
+        <Fab label={t('dashboard.newTrip')} onPress={openCreate} />
         <View style={{ flex: 1, alignItems: 'center' }}>
           <DockSlot label={t('mobileNav.more')} icon="ellipsis-horizontal" active={moreOpen} onPress={() => setMoreOpen(true)} />
         </View>
@@ -287,39 +348,65 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
       </Sheet>
 
-      <Sheet open={createOpen} onClose={() => setCreateOpen(false)}>
-        <View style={{ paddingHorizontal: 20, gap: 12 }}>
-          <Text style={{ fontFamily: fontFamily.bold, fontSize: 17, color: m.ink }}>{t('dashboard.newTrip')}</Text>
-          <Text style={{ fontFamily: fontFamily.regular, fontSize: 13, color: m.muted }}>{t('dashboard.newTripSub')}</Text>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder={t('common.name')}
-            placeholderTextColor={m.faint}
-            style={{
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: m.glassBorder,
-              backgroundColor: m.ic,
-              color: m.ink,
-              fontFamily: fontFamily.regular,
-              fontSize: 16,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-            }}
-          />
-          <CoverSearch seed={title} selectedUrl={coverUrl} onSelect={(photo: CoverPhoto) => setCoverUrl(photo.url)} />
-          {createError ? <Text style={{ color: m.danger, fontFamily: fontFamily.regular }}>{createError}</Text> : null}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable onPress={() => setCreateOpen(false)} style={{ flex: 1, borderRadius: 999, backgroundColor: m.ic, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ fontFamily: fontFamily.semibold, color: m.ink }}>{t('common.cancel')}</Text>
-            </Pressable>
-            <Pressable onPress={submitCreate} style={{ flex: 1, borderRadius: 999, backgroundColor: m.act, paddingVertical: 12, alignItems: 'center' }}>
-              {creating ? <ActivityIndicator color={m.actFg} /> : <Text style={{ fontFamily: fontFamily.semibold, color: m.actFg }}>{t('common.save')}</Text>}
-            </Pressable>
-          </View>
-        </View>
-      </Sheet>
+      <TripFormSheet
+        open={formOpen}
+        trip={formTrip}
+        onClose={() => { setFormOpen(false); setFormTrip(null); }}
+        onSave={submitForm}
+        onArchive={
+          formTrip
+            ? async () => {
+                const editing = formTrip;
+                try {
+                  await setArchived(editing.id, !editing.is_archived);
+                } catch (err) {
+                  throw new Error(tripErrorMessage(err, editing.is_archived ? t('dashboard.toast.restoreError') : t('dashboard.toast.archiveError')));
+                }
+                setFormOpen(false);
+                setFormTrip(null);
+              }
+            : undefined
+        }
+      />
+
+      <ConfirmSheet
+        open={pendingDelete != null}
+        title={t('common.delete')}
+        message={pendingDelete ? t('dashboard.confirm.delete', { title: pendingDelete.title }) : ''}
+        confirmLabel={t('common.delete')}
+        danger
+        busy={confirming}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          const id = pendingDelete.id;
+          setConfirming(true);
+          runAction(() => removeTrip(id), t('dashboard.toast.deleteError')).finally(() => {
+            setConfirming(false);
+            setPendingDelete(null);
+          });
+        }}
+      />
+      <ConfirmSheet
+        open={pendingCopy != null}
+        title={t('dashboard.confirm.copy.title')}
+        message={pendingCopy?.title ?? ''}
+        confirmLabel={t('dashboard.confirm.copy.confirm')}
+        busy={confirming}
+        onClose={() => setPendingCopy(null)}
+        onConfirm={() => {
+          if (!pendingCopy) return;
+          const source = pendingCopy;
+          setConfirming(true);
+          runAction(
+            () => copyTrip(source.id, `${source.title} (${t('dashboard.copySuffix')})`).then(() => undefined),
+            t('dashboard.toast.copyError'),
+          ).finally(() => {
+            setConfirming(false);
+            setPendingCopy(null);
+          });
+        }}
+      />
 
       <CoverPicker
         open={coverTrip != null}
@@ -388,25 +475,43 @@ function CoverBadge({ label }: { label: string }) {
   );
 }
 
-function PhotoButton({ onPress }: { onPress: () => void }) {
+function CoverActions({ actions }: { actions: CardAction[] }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={{ position: 'absolute', right: 10, top: 10, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <Ionicons name="image-outline" size={16} color="#fff" />
-    </Pressable>
+    <View style={{ position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6 }}>
+      {actions.map((action) => (
+        <Pressable
+          key={action.key}
+          accessibilityLabel={action.label}
+          onPress={action.onPress}
+          style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Ionicons name={action.icon} size={15} color="#fff" />
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
-function SpotlightCard({ trip, label, t, onOpen, onCover }: { trip: Trip; label: string; t: (key: string, vars?: Record<string, string | number>) => string; onOpen: () => void; onCover: () => void }) {
+function SpotlightCard({
+  trip,
+  label,
+  t,
+  actions,
+  onOpen,
+}: {
+  trip: Trip;
+  label: string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  actions: CardAction[];
+  onOpen: () => void;
+}) {
   const days = trip.day_count ?? 0;
   const places = trip.place_count ?? 0;
   const people = (trip.shared_count ?? 0) + 1;
   return (
     <Pressable onPress={onOpen} style={{ height: 300, borderRadius: 26, overflow: 'hidden' }}>
       <Cover trip={trip} height={300} />
-      <PhotoButton onPress={onCover} />
+      <CoverActions actions={actions} />
       <View style={{ position: 'absolute', left: 10, right: 10, bottom: 10, borderRadius: 18, backgroundColor: 'rgba(14,14,17,0.52)', paddingHorizontal: 14, paddingVertical: 12 }}>
         <View style={{ alignSelf: 'flex-start', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.92)', paddingHorizontal: 8, paddingVertical: 3 }}>
           <Text style={{ fontFamily: fontFamily.bold, fontSize: 10, letterSpacing: 0.6, color: '#101013' }}>{label.toUpperCase()}</Text>
@@ -443,7 +548,7 @@ function DateSpan({ start, end, locale }: { start?: string | null; end?: string 
   );
 }
 
-function GridCard({ trip, locale, badge, onOpen, onCover }: { trip: Trip; locale: string; badge: string; onOpen: () => void; onCover: () => void }) {
+function GridCard({ trip, locale, badge, actions, onOpen }: { trip: Trip; locale: string; badge: string; actions: CardAction[]; onOpen: () => void }) {
   const { m } = useTheme();
   return (
     <Pressable onPress={onOpen}>
@@ -451,7 +556,7 @@ function GridCard({ trip, locale, badge, onOpen, onCover }: { trip: Trip; locale
         <View>
           <Cover trip={trip} height={140} />
           <CoverBadge label={badge} />
-          <PhotoButton onPress={onCover} />
+          <CoverActions actions={actions} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 12 }}>
           <Text style={{ flex: 1, fontFamily: fontFamily.semibold, fontSize: 14, color: m.ink }} numberOfLines={1}>
@@ -469,15 +574,15 @@ function ListCard({
   locale,
   badge,
   t,
+  actions,
   onOpen,
-  onCover,
 }: {
   trip: Trip;
   locale: string;
   badge: string;
   t: (key: string) => string;
+  actions: CardAction[];
   onOpen: () => void;
-  onCover: () => void;
 }) {
   const { m } = useTheme();
   return (
@@ -486,7 +591,7 @@ function ListCard({
         <View>
           <Cover trip={trip} height={188} />
           <CoverBadge label={badge} />
-          <PhotoButton onPress={onCover} />
+          <CoverActions actions={actions} />
           <Text style={{ position: 'absolute', left: 16, right: 16, bottom: 14, color: '#fff', fontFamily: fontFamily.bold, fontSize: 26 }} numberOfLines={1}>
             {trip.title}
           </Text>
@@ -502,6 +607,49 @@ function ListCard({
         </View>
       </GlassCard>
     </Pressable>
+  );
+}
+
+function ConfirmSheet({
+  open,
+  title,
+  message,
+  confirmLabel,
+  danger,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { m } = useTheme();
+  const { t } = useTranslation();
+  return (
+    <Sheet open={open} onClose={onClose}>
+      <View style={{ paddingHorizontal: 20, gap: 12 }}>
+        <Text style={{ fontFamily: fontFamily.bold, fontSize: 17, color: m.ink }}>{title}</Text>
+        <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: m.muted }}>{message}</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable onPress={onClose} style={{ flex: 1, borderRadius: 999, backgroundColor: m.ic, paddingVertical: 12, alignItems: 'center' }}>
+            <Text style={{ fontFamily: fontFamily.semibold, color: m.ink }}>{t('common.cancel')}</Text>
+          </Pressable>
+          <Pressable
+            onPress={onConfirm}
+            disabled={busy}
+            style={{ flex: 1, borderRadius: 999, backgroundColor: danger ? m.danger : m.act, paddingVertical: 12, alignItems: 'center' }}
+          >
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: fontFamily.semibold, color: '#fff' }}>{confirmLabel}</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </Sheet>
   );
 }
 

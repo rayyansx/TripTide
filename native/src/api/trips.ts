@@ -1,4 +1,4 @@
-import type { Day, Place, Trip, TripCreateRequest } from '@trek/shared';
+import type { Day, Place, Trip, TripCopyRequest, TripCreateRequest, TripUpdateRequest } from '@trek/shared';
 import { apiClient } from './client';
 
 export async function listTrips(): Promise<Trip[]> {
@@ -39,7 +39,25 @@ export async function searchCoverPhotos(query: string): Promise<CoverPhoto[]> {
   return data.photos ?? [];
 }
 
-export async function updateTrip(id: number, body: { cover_image?: string | null; title?: string }): Promise<Trip> {
+export async function updateTrip(id: number, body: TripUpdateRequest): Promise<Trip> {
   const { data } = await apiClient.put<{ trip: Trip }>(`/trips/${id}`, body);
   return data.trip;
+}
+
+export async function deleteTrip(id: number): Promise<void> {
+  await apiClient.delete(`/trips/${id}`);
+}
+
+export async function copyTrip(id: number, body: TripCopyRequest): Promise<Trip> {
+  const { data } = await apiClient.post<{ trip: Trip }>(`/trips/${id}/copy`, body);
+  return data.trip;
+}
+
+export function tripErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: { error?: string; message?: string } } }).response?.data;
+    if (data?.error) return data.error;
+    if (typeof data?.message === 'string') return data.message;
+  }
+  return err instanceof Error ? err.message : fallback;
 }
