@@ -63,10 +63,10 @@ flowchart TB
 **Goal:** Turn the view-only itinerary into a full-featured planner with stop editing, search, and map routes.
 
 #### **Rayyan (APIs & Data Layer)**
-- [ ] **Place Search & Geocoding Service:** Build a search client in `native/src/api/` using Photon/Nominatim with coordinate, address, and category parsing.
-- [ ] **Days & Stops Data Layer (`native/src/repo/`):** Implement full CRUD methods (`createDay`, `updateDay`, `deleteDay`, `addPlace`, `updatePlace`, `reorderPlaces`, `deletePlace`).
-- [ ] **Shared Contracts:** Ensure Zod schemas in `@trek/shared` cover time slots, arrival/departure fields, and coordinate validation.
-- [ ] **Route Distance & Duration Utility:** Integrate an OSRM routing endpoint/utility that calculates distance and travel time between consecutive stops.
+- [x] **Place Search & Geocoding Service:** Build a search client in `native/src/api/` using Photon/Nominatim with coordinate, address, and category parsing.
+- [x] **Days & Stops Data Layer (`native/src/repo/`):** Implement full CRUD methods (`createDay`, `updateDay`, `deleteDay`, `addPlace`, `updatePlace`, `reorderPlaces`, `deletePlace`).
+- [x] **Shared Contracts:** Ensure Zod schemas in `@trek/shared` cover time slots, arrival/departure fields, and coordinate validation.
+- [x] **Route Distance & Duration Utility:** Integrate an OSRM routing endpoint/utility that calculates distance and travel time between consecutive stops.
 
 #### **Junaid (Frontend & UI/UX)**
 - [ ] **Interactive Day Timeline:** Build vertical timeline cards featuring time pills, category badges, travel-time indicators between stops, and drag handles.
