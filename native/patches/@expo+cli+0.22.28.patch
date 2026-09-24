@@ -1,0 +1,84 @@
+diff --git a/node_modules/@expo/cli/build/src/start/doctor/apple/SimulatorAppPrerequisite.js b/node_modules/@expo/cli/build/src/start/doctor/apple/SimulatorAppPrerequisite.js
+index 2ff180f..e0f947f 100644
+--- a/node_modules/@expo/cli/build/src/start/doctor/apple/SimulatorAppPrerequisite.js
++++ b/node_modules/@expo/cli/build/src/start/doctor/apple/SimulatorAppPrerequisite.js
+@@ -80,8 +80,21 @@ class SimulatorAppPrerequisite extends _prerequisite.Prerequisite {
+     async assertImplementation() {
+         const result = await getSimulatorAppIdAsync();
+         if (!result) {
+-            // This error may occur in CI where the users intends to install just the simulators but no Xcode.
+-            throw new _prerequisite.PrerequisiteCommandError("SIMULATOR_APP", "Can't determine id of Simulator app; the Simulator is most likely not installed on this machine. Run `sudo xcode-select -s /Applications/Xcode.app`");
++            // TREK patch (see native/patches/@expo+cli+*.patch): some setups (e.g. a
++            // third-party simulator front-end that talks to CoreSimulator directly,
++            // like this machine's "devicehub") never register an app named
++            // "Simulator" in Launch Services, so the AppleScript lookup above always
++            // fails even though `xcrun simctl` is fully functional and a device is
++            // already booted. Fall through to the simctl check below instead of
++            // hard-failing when that's the case; only throw if simctl itself is
++            // also broken, which is the actual thing this prerequisite guards.
++            try {
++                await (0, _spawnAsync().default)("xcrun", ["simctl", "help"]);
++                _log.warn('No app named "Simulator" is registered on this machine, but `xcrun simctl` works — continuing (see native/patches/ for why).');
++                return;
++            } catch {
++                throw new _prerequisite.PrerequisiteCommandError("SIMULATOR_APP", "Can't determine id of Simulator app; the Simulator is most likely not installed on this machine. Run `sudo xcode-select -s /Applications/Xcode.app`");
++            }
+         }
+         if (result !== "com.apple.iphonesimulator" && result !== "com.apple.CoreSimulator.SimulatorTrampoline") {
+             throw new _prerequisite.PrerequisiteCommandError("SIMULATOR_APP", "Simulator is installed but is identified as '" + result + "'; don't know what that is.");
+diff --git a/node_modules/@expo/cli/build/src/start/doctor/ngrok/ExternalModule.js b/node_modules/@expo/cli/build/src/start/doctor/ngrok/ExternalModule.js
+index 8a21594..e439413 100644
+--- a/node_modules/@expo/cli/build/src/start/doctor/ngrok/ExternalModule.js
++++ b/node_modules/@expo/cli/build/src/start/doctor/ngrok/ExternalModule.js
+@@ -183,7 +183,25 @@ class ExternalModule {
+         return (0, _resolveFrom().default)(this.projectRoot, moduleId);
+     }
+     /** Resolve a copy that's installed globally. Exposed for testing. */ _resolveGlobal(moduleId) {
+-        return _requireg().default.resolve(moduleId);
++        // TREK patch (see native/patches/@expo+cli+*.patch): `requireg` is
++        // unmaintained and its global-path detection heuristics don't know
++        // about newer npm/Node setups (e.g. Homebrew's global root on Node
++        // 26) — it silently resolves to `undefined` instead of throwing,
++        // which this class's caller can't tell apart from "not installed",
++        // so a genuinely-installed global package is reported missing.
++        // `npm root -g` + Node's own `require.resolve` is more reliable.
++        try {
++            const globalRoot = require("child_process").execSync("npm root -g", {
++                encoding: "utf8"
++            }).trim();
++            return require.resolve(moduleId, {
++                paths: [
++                    globalRoot
++                ]
++            });
++        } catch  {
++            return _requireg().default.resolve(moduleId);
++        }
+     }
+     /** Resolve the module and verify the version. Exposed for testing. */ _resolveModule(isLocal) {
+         const resolver = isLocal ? this._resolveLocal.bind(this) : this._resolveGlobal.bind(this);
+diff --git a/node_modules/@expo/cli/build/src/utils/downloadAppAsync.js b/node_modules/@expo/cli/build/src/utils/downloadAppAsync.js
+index d355a0a..114131c 100644
+--- a/node_modules/@expo/cli/build/src/utils/downloadAppAsync.js
++++ b/node_modules/@expo/cli/build/src/utils/downloadAppAsync.js
+@@ -66,11 +66,17 @@ async function downloadAsync({ url , outputPath , cacheDirectory , onProgress  }
+         });
+     }
+     debug(`Downloading ${url} to ${outputPath}`);
++    // TREK patch (see native/patches/@expo+cli+*.patch): passing a `dispatcher`
++    // built from the standalone `undici` package to the runtime's native
++    // `fetch` crosses a package boundary that newer Node versions validate
++    // strictly — Node 26's built-in fetch (internal undici) rejects the
++    // userland Agent's handler shape with "InvalidArgumentError: invalid
++    // onError method", surfacing to callers as an opaque "fetch failed".
++    // AbortSignal.timeout gives the same connect-timeout behavior without
++    // constructing a foreign Agent instance.
+     const res = await fetchInstance(url, {
+         onProgress,
+-        dispatcher: new (_undici()).Agent({
+-            connectTimeout: TIMER_DURATION
+-        })
++        signal: AbortSignal.timeout(TIMER_DURATION)
+     });
+     if (!res.ok || !res.body) {
+         throw new _errors.CommandError("FILE_DOWNLOAD", `Unexpected response: ${res.statusText}. From url: ${url}`);

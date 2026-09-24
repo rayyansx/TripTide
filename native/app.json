@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "TripTide",
+    "slug": "trek",
+    "scheme": "trek",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#0f172a",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "com.trek.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.trek.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-localization",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#0f172a",
+          "resizeMode": "contain"
+        }
+      ]
+    ]
+  }
+}

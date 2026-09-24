@@ -1,0 +1,55 @@
+{
+  "name": "@trek/native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TREK native mobile app (iOS/Android) — Expo/React Native client of the existing TREK server. See native/README.md for the phased roadmap. Not a root npm workspace (own lockfile), same reasoning as plugin-sdk/.",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "postinstall": "patch-package",
+    "start": "node scripts/setDefaultIosSimulator.js && expo start",
+    "start:tunnel": "node scripts/setDefaultIosSimulator.js && expo start --tunnel",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prebuild:shared": "cd .. && npm run build --workspace=shared"
+  },
+  "dependencies": {
+    "@expo-google-fonts/poppins": "^0.4.1",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-navigation/bottom-tabs": "^7.2.0",
+    "@react-navigation/native": "^7.0.19",
+    "@react-navigation/native-stack": "^7.2.1",
+    "@trek/shared": "file:../shared",
+    "axios": "^1.6.7",
+    "expo": "~52.0.0",
+    "expo-asset": "~11.0.5",
+    "expo-blur": "~14.0.3",
+    "expo-font": "~13.0.4",
+    "expo-linear-gradient": "~14.0.2",
+    "expo-localization": "~16.0.1",
+    "expo-secure-store": "~14.0.1",
+    "expo-splash-screen": "~0.29.24",
+    "expo-sqlite": "~15.1.4",
+    "expo-status-bar": "~2.0.1",
+    "react": "18.3.1",
+    "react-native": "0.76.9",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-webview": "13.12.5",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@types/react": "~18.3.12",
+    "eslint": "^10.3.0",
+    "patch-package": "^8.0.1",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.58.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
