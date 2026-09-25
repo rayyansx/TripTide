@@ -18,6 +18,13 @@ import { useTranslation } from '../../i18n/TranslationContext';
 import { fontFamily, useTheme } from '../../theme';
 import { GlassCard } from '../../ui/chrome';
 
+import { BudgetDashboard } from '../Budget/BudgetDashboard';
+import { BalancesTab } from '../Budget/BalancesTab';
+import { AddExpenseSheet } from '../Budget/AddExpenseSheet';
+import { computeBalances } from '../../api/debtMath';
+import { create as createBudget } from '../../repo/budgetRepo';
+
+
 type TripTab = 'transports' | 'buchungen' | 'finanzplan' | 'listen' | 'dateien' | 'collab';
 
 const TRANSPORT_TYPES = new Set(['flight', 'train', 'bus', 'ferry', 'car', 'transit', 'rideshare', 'transport', 'taxi', 'rental_car']);
@@ -33,6 +40,7 @@ export function TripPanel({ tripId, tab, top, bottom }: { tripId: number; tab: T
   const [files, setFiles] = useState<FileRow[]>([]);
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +80,7 @@ export function TripPanel({ tripId, tab, top, bottom }: { tripId: number; tab: T
 
   const transportRows = reservations.filter((row) => TRANSPORT_TYPES.has(row.type));
   const bookingRows = reservations.filter((row) => !TRANSPORT_TYPES.has(row.type));
+  const computedBalances = budget.length > 0 ? computeBalances(budget as import('@trek/shared').BudgetItem[]) : [];
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: top + 72, paddingBottom: bottom, paddingHorizontal: 16, gap: 10 }}>
@@ -79,16 +88,39 @@ export function TripPanel({ tripId, tab, top, bottom }: { tripId: number; tab: T
       {error ? <Text style={{ fontFamily: fontFamily.regular, color: m.danger }}>{error}</Text> : null}
       {!loading && !error && tab === 'transports' ? <ReservationList rows={transportRows} empty={t('transport.title')} /> : null}
       {!loading && !error && tab === 'buchungen' ? <ReservationList rows={bookingRows.length ? bookingRows : reservations} empty={t('reservations.title')} /> : null}
-      {!loading && !error && tab === 'finanzplan'
-        ? budget.length === 0
-          ? <Empty label={t('budget.title')} />
-          : budget.map((item) => (
-            <GlassCard key={item.id} style={{ padding: 14, gap: 4 }}>
-              <Text style={{ fontFamily: fontFamily.semibold, fontSize: 15, color: m.ink }}>{item.name}</Text>
-              <Text style={{ fontFamily: fontFamily.regular, fontSize: 13, color: m.muted }}>{money(item, locale)} · {item.category}</Text>
+      {!loading && !error && tab === 'finanzplan' ? (
+        budget.length === 0 ? (
+          <View style={{ gap: 16 }}>
+            <Empty label={t('budget.title')} />
+            <GlassCard style={{ padding: 14, alignItems: 'center' }}>
+               <Text onPress={() => setAddExpenseOpen(true)} style={{ fontFamily: fontFamily.bold, color: m.act }}>
+                 + {t('budget.addExpense') || 'Add Expense'}
+               </Text>
             </GlassCard>
-          ))
-        : null}
+          </View>
+        ) : (
+          <View style={{ gap: 16 }}>
+            <BudgetDashboard budgetItems={budget} />
+            <BalancesTab balances={computedBalances} />
+            <View style={{ gap: 10 }}>
+              <Text style={{ fontFamily: fontFamily.semibold, fontSize: 16, color: m.ink }}>
+                {t('budget.expenses') || 'Expenses'}
+              </Text>
+              {budget.map((item) => (
+                <GlassCard key={item.id} style={{ padding: 14, gap: 4 }}>
+                  <Text style={{ fontFamily: fontFamily.semibold, fontSize: 15, color: m.ink }}>{item.name}</Text>
+                  <Text style={{ fontFamily: fontFamily.regular, fontSize: 13, color: m.muted }}>{money(item, locale)} · {item.category}</Text>
+                </GlassCard>
+              ))}
+            </View>
+            <GlassCard style={{ padding: 14, alignItems: 'center', marginTop: 8 }}>
+               <Text onPress={() => setAddExpenseOpen(true)} style={{ fontFamily: fontFamily.bold, color: m.act }}>
+                 + {t('budget.addExpense') || 'Add Expense'}
+               </Text>
+            </GlassCard>
+          </View>
+        )
+      ) : null}
       {!loading && !error && tab === 'listen'
         ? packing.length === 0
           ? <Empty label={t('packing.title')} />
@@ -125,7 +157,26 @@ export function TripPanel({ tripId, tab, top, bottom }: { tripId: number; tab: T
           ))}
         </>
       ) : null}
+
+      <AddExpenseSheet
+        open={addExpenseOpen}
+        onClose={() => setAddExpenseOpen(false)}
+        onAdd={async (exp) => {
+          try {
+            await createBudget(tripId, {
+              name: exp.name,
+              total_price: exp.amount,
+              currency: exp.currency
+            });
+            const rows = await listBudget(tripId);
+            setBudget(rows);
+          } catch (e) {
+            console.warn(e);
+          }
+        }}
+      />
     </ScrollView>
+
   );
 }
 
