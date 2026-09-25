@@ -59,5 +59,6 @@ export function tripErrorMessage(err: unknown, fallback: string): string {
     if (data?.error) return data.error;
     if (typeof data?.message === 'string') return data.message;
   }
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as Error).message === 'string' && (err as Error).message.startsWith('OFFLINE_QUEUED')) return 'Saved offline. Will sync when reconnected.';
   return err instanceof Error ? err.message : fallback;
 }

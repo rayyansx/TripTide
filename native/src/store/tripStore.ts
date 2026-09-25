@@ -1,6 +1,7 @@
 import type { Trip, TripCreateRequest } from '@trek/shared';
 import { create } from 'zustand';
 import { tripRepo } from '../repo/tripRepo';
+import { connectRealtime } from '../api/websocket';
 
 interface TripState {
   trips: Trip[];
@@ -12,13 +13,17 @@ interface TripState {
   setArchived: (id: number, archived: boolean) => Promise<void>;
   removeTrip: (id: number) => Promise<void>;
   copyTrip: (id: number, title: string) => Promise<Trip>;
+  connectWebSocket: () => void;
+  disconnectWebSocket: () => void;
 }
 
 function mergeTrip(trips: Trip[], trip: Trip): Trip[] {
   return trips.map((item) => (item.id === trip.id ? { ...item, ...trip } : item));
 }
 
-export const useTripStore = create<TripState>((set) => ({
+let wsInstance: WebSocket | null = null;
+
+export const useTripStore = create<TripState>((set, get) => ({
   trips: [],
   status: 'idle',
   error: null,
@@ -59,4 +64,23 @@ export const useTripStore = create<TripState>((set) => ({
     set((state) => ({ trips: [trip, ...state.trips.filter((item) => item.id !== trip.id)], status: 'ready' }));
     return trip;
   },
+  connectWebSocket() {
+    if (wsInstance) return;
+
+    connectRealtime((msg: unknown) => {
+      // Reload trips entirely or handle specific mutation payloads
+      // (a real world scenario checks if msg.type is trip_updated, etc. but a simple loadTrips covers it)
+      if (msg && typeof msg === 'object' && 'type' in msg && msg.type !== 'welcome') {
+        get().loadTrips();
+      }
+    }).then(socket => {
+      wsInstance = socket;
+    }).catch(console.error);
+  },
+  disconnectWebSocket() {
+    if (wsInstance) {
+      wsInstance.close();
+      wsInstance = null;
+    }
+  }
 }));

@@ -17,6 +17,7 @@ import {
 import { useTranslation } from '../../i18n/TranslationContext';
 import { fontFamily, useTheme } from '../../theme';
 import { GlassCard } from '../../ui/chrome';
+import { CollabMembersUI } from './CollabMembersUI';
 
 type TripTab = 'transports' | 'buchungen' | 'finanzplan' | 'listen' | 'dateien' | 'collab';
 
@@ -110,6 +111,7 @@ export function TripPanel({ tripId, tab, top, bottom }: { tripId: number; tab: T
         : null}
       {!loading && !error && tab === 'collab' ? (
         <>
+          <CollabMembersUI tripId={tripId} />
           {notes.length === 0 && messages.length === 0 ? <Empty label={t('collab.tabs.notes')} /> : null}
           {notes.map((note) => (
             <GlassCard key={`n-${note.id}`} style={{ padding: 14, gap: 4 }}>

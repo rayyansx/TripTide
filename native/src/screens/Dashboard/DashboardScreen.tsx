@@ -44,7 +44,7 @@ export function DashboardScreen({ navigation }: Props) {
   const logout = useAuthStore((state) => state.logout);
   const preference = useTheme().preference;
   const setPreference = useTheme().setPreference;
-  const { trips, status, error, loadTrips, saveTrip, setCover, setArchived, removeTrip, copyTrip } = useTripStore();
+  const { trips, status, error, loadTrips, connectWebSocket, disconnectWebSocket, saveTrip, setCover, setArchived, removeTrip, copyTrip } = useTripStore();
   const [filter, setFilter] = useState<TripFilter>('planned');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,6 +62,11 @@ export function DashboardScreen({ navigation }: Props) {
   useEffect(() => {
     loadTrips();
   }, [loadTrips]);
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => disconnectWebSocket();
+  }, [connectWebSocket, disconnectWebSocket]);
 
   const { spotlight, grid } = splitDashboard(trips, filter);
   const showEmpty = filter === 'planned' && !spotlight && grid.length === 0 && status !== 'loading' && status !== 'error';
@@ -339,6 +344,7 @@ export function DashboardScreen({ navigation }: Props) {
 
       <Sheet open={moreOpen} onClose={() => setMoreOpen(false)}>
         <MoreRow label={t('nav.bottomSettings')} icon="settings-outline" onPress={() => { setMoreOpen(false); navigation.navigate('Settings'); }} />
+        <MoreRow label="Traveler Toolkit" icon="briefcase-outline" onPress={() => { setMoreOpen(false); navigation.navigate('Toolkit'); }} />
       </Sheet>
 
       <Sheet open={notesOpen} onClose={() => setNotesOpen(false)}>

@@ -1,7 +1,9 @@
 import axios from 'axios';
+import NetInfo from '@react-native-community/netinfo';
 import { API_BASE_URL } from '../config';
 import { getSocketId } from './socketId';
 import { getToken, clearToken } from './tokenStore';
+import { queueMutation } from '../db/mutationQueue';
 
 /**
  * Mirrors client/src/api/client.ts's interceptor shape (bearer auth instead
@@ -26,6 +28,30 @@ apiClient.interceptors.request.use(async (config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   const socketId = getSocketId();
   if (socketId) config.headers['X-Socket-Id'] = socketId;
+
+  // Intercept mutations (POST/PUT/DELETE/PATCH) when offline
+  if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase() || '')) {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      // Determine tripId if possible from URL
+      let tripId: number | undefined;
+      const tripMatch = config.url?.match(/\/trips\/(\d+)/);
+      if (tripMatch) {
+        tripId = parseInt(tripMatch[1], 10);
+      }
+
+      const id = await queueMutation(tripId, {
+        method: config.method?.toLowerCase() as 'post' | 'put' | 'delete' | 'patch',
+        url: config.url || '',
+        body: config.data,
+        headers: config.headers as Record<string, string>,
+      });
+
+      // Reject the request gracefully so the caller knows it was queued offline
+      throw new axios.Cancel(`OFFLINE_QUEUED:${id}`);
+    }
+  }
+
   return config;
 });
 

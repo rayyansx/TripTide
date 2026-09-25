@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Assignment, Day, Place } from '@trek/shared';
 import { useCallback, useEffect, useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +64,14 @@ export function TripScreen({ navigation, route }: Props) {
   const [mapFront, setMapFront] = useState(false);
   const [dayId, setDayId] = useState<number | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOffline(state.isConnected === false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Sprint 1 Sheets & Routing state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -249,6 +258,11 @@ function getCategoryLabel(category: unknown): string | null {
 
   return (
     <View style={{ flex: 1, backgroundColor: m.bg }}>
+      {isOffline && (
+        <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, backgroundColor: m.danger, paddingVertical: 4, alignItems: 'center', zIndex: 100 }}>
+          <Text style={{ fontFamily: fontFamily.medium, fontSize: 12, color: '#fff' }}>You are currently offline</Text>
+        </View>
+      )}
       {mapFront && tab === 'plan' && !loading && !error ? (
         <TripMap points={mapPoints} routeCoordinates={routeResult?.fullPolyline} />
       ) : (
