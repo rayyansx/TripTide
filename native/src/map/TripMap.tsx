@@ -16,12 +16,12 @@ function mapDocument(style: MapStyle, ink: string, fg: string): string {
 <style>
   html, body, #map { margin: 0; height: 100%; background: #e8e6e1; }
   .pin {
-    width: 26px; height: 26px; border-radius: 13px;
+    width: 28px; height: 28px; border-radius: 14px;
     background: ${ink}; color: ${fg};
     display: flex; align-items: center; justify-content: center;
-    font: 700 12px -apple-system, sans-serif;
-    border: 2px solid #fff;
-    box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    font: 700 13px -apple-system, sans-serif;
+    border: 2.5px solid #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
   }
   .maplibregl-ctrl-attrib { font-size: 10px; }
 </style>
@@ -31,10 +31,12 @@ function mapDocument(style: MapStyle, ink: string, fg: string): string {
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
   var pending = [];
+  var pendingRoute = [];
   var apply = null;
-  window.__setPlaces = function (places) {
+  window.__setPlaces = function (places, route) {
     pending = places || [];
-    if (apply) apply(pending);
+    pendingRoute = route || [];
+    if (apply) apply(pending, pendingRoute);
   };
   var map = new maplibregl.Map({
     container: 'map',
@@ -46,9 +48,13 @@ function mapDocument(style: MapStyle, ink: string, fg: string): string {
   map.addControl(new maplibregl.AttributionControl({ compact: true }));
   var markers = [];
   map.on('load', function () {
-    apply = function (places) {
+    apply = function (places, route) {
       markers.forEach(function (marker) { marker.remove(); });
       markers = [];
+      if (map.getLayer('route-line-casing')) map.removeLayer('route-line-casing');
+      if (map.getLayer('route-line')) map.removeLayer('route-line');
+      if (map.getSource('route')) map.removeSource('route');
+
       if (!places.length) return;
       var bounds = new maplibregl.LngLatBounds();
       places.forEach(function (place, index) {
@@ -61,20 +67,65 @@ function mapDocument(style: MapStyle, ink: string, fg: string): string {
           .addTo(map));
         bounds.extend([place.lng, place.lat]);
       });
+
+      var lineCoords = (route && route.length >= 2)
+        ? route
+        : places.map(function(p) { return [p.lng, p.lat]; });
+
+      if (lineCoords.length >= 2) {
+        map.addSource('route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: lineCoords
+            }
+          }
+        });
+
+        map.addLayer({
+          id: 'route-line-casing',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '${ink}',
+            'line-width': 7,
+            'line-opacity': 0.22
+          }
+        });
+
+        map.addLayer({
+          id: 'route-line',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '${ink}',
+            'line-width': 3.5,
+            'line-dasharray': [1.5, 1.5]
+          }
+        });
+
+        lineCoords.forEach(function (c) { bounds.extend(c); });
+      }
+
       if (places.length === 1) {
         map.jumpTo({ center: [places[0].lng, places[0].lat], zoom: 13 });
       } else {
         map.fitBounds(bounds, { padding: { top: 150, bottom: 130, left: 48, right: 48 }, maxZoom: 14, duration: 0 });
       }
     };
-    apply(pending);
+    apply(pending, pendingRoute);
   });
 </script>
 </body>
 </html>`;
 }
 
-export function TripMap({ points }: { points: MapPoint[] }) {
+export function TripMap({ points, routeCoordinates }: { points: MapPoint[]; routeCoordinates?: [number, number][] }) {
   const { m, isDark } = useTheme();
   const webRef = useRef<WebView>(null);
   const [style, setStyle] = useState<MapStyle>(defaultStyle(isDark));
@@ -110,8 +161,9 @@ export function TripMap({ points }: { points: MapPoint[] }) {
   useEffect(() => {
     if (!ready) return;
     const payload = JSON.stringify(points).replaceAll('<', '\\u003c');
-    webRef.current?.injectJavaScript(`window.__setPlaces(${payload}); true;`);
-  }, [points, ready, style]);
+    const routePayload = JSON.stringify(routeCoordinates ?? []).replaceAll('<', '\\u003c');
+    webRef.current?.injectJavaScript(`window.__setPlaces(${payload}, ${routePayload}); true;`);
+  }, [points, routeCoordinates, ready, style]);
 
   return (
     <View style={StyleSheet.absoluteFill}>

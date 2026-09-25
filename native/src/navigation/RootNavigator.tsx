@@ -9,6 +9,7 @@ import type { AppStackParamList, AuthStackParamList } from './types';
 import { DashboardScreen } from '../screens/Dashboard/DashboardScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
 import { TripScreen } from '../screens/Trip/TripScreen';
+import { ToolkitScreen } from '../screens/Toolkit/ToolkitScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<AppStackParamList>();
@@ -47,6 +48,7 @@ export function RootNavigator() {
         <AppStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: m.bg } }}>
           <AppStack.Screen name="Dashboard" component={DashboardScreen} />
           <AppStack.Screen name="Trip" component={TripScreen} />
+          <AppStack.Screen name="Toolkit" component={ToolkitScreen} />
           <AppStack.Screen name="Settings" component={SettingsScreen} />
         </AppStack.Navigator>
       ) : (

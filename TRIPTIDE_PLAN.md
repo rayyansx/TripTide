@@ -69,10 +69,10 @@ flowchart TB
 - [x] **Route Distance & Duration Utility:** Integrate an OSRM routing endpoint/utility that calculates distance and travel time between consecutive stops.
 
 #### **Junaid (Frontend & UI/UX)**
-- [ ] **Interactive Day Timeline:** Build vertical timeline cards featuring time pills, category badges, travel-time indicators between stops, and drag handles.
-- [ ] **Place Search Bottom Sheet:** Implement a modal search sheet with search debouncing, loading skeletons, recent searches, and result cards.
-- [ ] **Stop Editor Bottom Sheet:** Build form for editing stop title, scheduled time, notes, and a day-selector dropdown to transfer stops between days.
-- [ ] **Map Polyline & Pins:** Update the OpenFreeMap webview to plot numbered stop markers and draw route lines connecting the day's stops in order.
+- [x] **Interactive Day Timeline:** Build vertical timeline cards featuring time pills, category badges, travel-time indicators between stops, and drag handles.
+- [x] **Place Search Bottom Sheet:** Implement a modal search sheet with search debouncing, loading skeletons, recent searches, and result cards.
+- [x] **Stop Editor Bottom Sheet:** Build form for editing stop title, scheduled time, notes, and a day-selector dropdown to transfer stops between days.
+- [x] **Map Polyline & Pins:** Update the OpenFreeMap webview to plot numbered stop markers and draw route lines connecting the day's stops in order.
 
 ---
 
@@ -81,15 +81,15 @@ flowchart TB
 **Goal:** Build a unified travel wallet for flights, hotel stays, trains, and rental cars.
 
 #### **Rayyan (APIs & Data Layer)**
-- [ ] **Bookings Data Model & Repo:** Implement `bookingsRepo.ts` to talk to `/api/reservations`, supporting stays, transit, activities, confirmation codes, and check-in/out times.
-- [ ] **Flight Lookup Service:** Create an API integration service to look up flight numbers and auto-fill departure/arrival airports, terminals, and scheduled times.
-- [ ] **Navigation Intent Utility:** Build a deep-link utility (`launchDirections(lat, lng, label)`) that prompts the user to open Apple Maps, Google Maps, Citymapper, or Waze.
+- [x] **Bookings Data Model & Repo:** Implement `bookingsRepo.ts` to talk to `/api/reservations`, supporting stays, transit, activities, confirmation codes, and check-in/out times.
+- [x] **Flight Lookup Service:** Create an API integration service to look up flight numbers and auto-fill departure/arrival airports, terminals, and scheduled times.
+- [x] **Navigation Intent Utility:** Build a deep-link utility (`launchDirections(lat, lng, label)`) that prompts the user to open Apple Maps, Google Maps, Citymapper, or Waze.
 
 #### **Junaid (Frontend & UI/UX)**
-- [ ] **Bookings Hub Screen:** Segmented tabs for `Stays`, `Flights & Transit`, and `Activities`.
-- [ ] **Travel Cards:** Design specialized cards (e.g., flight card styled like a boarding pass with departure/arrival airport codes; hotel card with dates and address).
-- [ ] **Add/Edit Booking Flow:** Bottom sheet form with system date/time pickers (`@react-native-community/datetimepicker`) and booking type selectors.
-- [ ] **One-Tap Actions:** Quick-copy button for PNR/confirmation codes (with visual toast/feedback) and "Open in Maps" button on stay locations.
+- [x] **Bookings Hub Screen:** Segmented tabs for `Stays`, `Flights & Transit`, and `Activities`.
+- [x] **Travel Cards:** Design specialized cards (e.g., flight card styled like a boarding pass with departure/arrival airport codes; hotel card with dates and address).
+- [x] **Add/Edit Booking Flow:** Bottom sheet form with system date/time pickers (`@react-native-community/datetimepicker`) and booking type selectors.
+- [x] **One-Tap Actions:** Quick-copy button for PNR/confirmation codes (with visual toast/feedback) and "Open in Maps" button on stay locations.
 
 ---
 
@@ -98,14 +98,14 @@ flowchart TB
 **Goal:** Provide full offline expense tracking, multi-currency conversion, and group debt balances.
 
 #### **Rayyan (APIs & Data Layer)**
-- [ ] **FX Rate Sync & Offline Cache:** Integrate Frankfurter API with local storage caching so currency conversion functions without an internet connection.
-- [ ] **Budget Data Layer (`budgetRepo.ts`):** Build endpoints integration for adding, updating, and categorizing trip expenses.
-- [ ] **Debt Resolution Math Engine:** Write unit-tested utility to compute net balances among trip members (*Who paid vs. who owes what*).
+- [x] **FX Rate Sync & Offline Cache:** Integrate Frankfurter API with local storage caching so currency conversion functions without an internet connection.
+- [x] **Budget Data Layer (`budgetRepo.ts`):** Build endpoints integration for adding, updating, and categorizing trip expenses.
+- [x] **Debt Resolution Math Engine:** Write unit-tested utility to compute net balances among trip members (*Who paid vs. who owes what*).
 
 #### **Junaid (Frontend & UI/UX)**
-- [ ] **Budget Dashboard:** Header displaying total spent vs budget, base currency switcher, and visual spending breakdown (progress bars or donut chart).
-- [ ] **"Who Owes Who" Balances Tab:** Clear member debt cards with green/red status pills (*"Rayyan owes Junaid £25"*).
-- [ ] **Quick Add Expense Sheet:** Custom numeric keypad, currency selector, and member multi-selector for splitting expenses (equal, custom, or percentage shares).
+- [x] **Budget Dashboard:** Header displaying total spent vs budget, base currency switcher, and visual spending breakdown (progress bars or donut chart).
+- [x] **"Who Owes Who" Balances Tab:** Clear member debt cards with green/red status pills (*"Rayyan owes Junaid £25"*).
+- [x] **Quick Add Expense Sheet:** Custom numeric keypad, currency selector, and member multi-selector for splitting expenses (equal, custom, or percentage shares).
 
 ---
 
